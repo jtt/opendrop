@@ -186,6 +186,8 @@ class AirDropClient:
         ask_body["Files"] = [e for e in file_entries(file_path)]
         ask_body["Items"] = []
 
+        logger.debug(f"/Ask {repr(ask_body)}")
+
         ask_binary = plistlib.dumps(
             ask_body, fmt=plistlib.FMT_BINARY  # pylint: disable=no-member
         )
