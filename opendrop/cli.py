@@ -41,7 +41,7 @@ class AirDropCli:
     def __init__(self, args):
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "action", choices=["receive", "find", "send", "discover", "ask"]
+            "action", choices=["receive", "find", "send", "discover", "ask", "upload"]
         )
         parser.add_argument("-f", "--file", help="File to be sent")
         parser.add_argument(
@@ -112,9 +112,9 @@ class AirDropCli:
                 self._address = args.address
                 self._port = args.port
                 self.cmd_discover()
-            elif args.action == "ask":
+            elif args.action == "ask" or args.action == "upload":
                 if args.address is None:
-                    parser.error("Need -A, --address when using raw ask")
+                    parser.error("Need -A, --address when using raw ask/upload")
                 self._address = args.address
                 self._port = args.port
                 if args.file is None:
@@ -122,7 +122,11 @@ class AirDropCli:
                 if not os.path.isfile(args.file):
                     parser.error("File in -f,--file not found")
                 self.file = args.file
-                self.cmd_ask()
+                if args.action == "ask":
+                    self.cmd_ask()
+                else:
+                    self.cmd_upload()
+
             elif args.action == "send":
                 if args.file is None:
                     parser.error("Need -f,--file when using send")
@@ -212,11 +216,19 @@ class AirDropCli:
         client = AirDropClient(self.config, (address, port))
         client.send_ask(self.file)
 
+    def _send_upload_to(self, address: str, port: int):
+        logger.debug(f"Sending Upload to [{address}]:{port}")
+        client = AirDropClient(self.config, (address, port))
+        client.send_upload(self.file)
+
     def cmd_discover(self):
         self._send_discover_to(self._address, self._port)
 
     def cmd_ask(self):
         self._send_ask_to(self._address, self._port)
+
+    def cmd_upload(self):
+        self._send_upload_to(self._address, self._port)
 
     def receive(self):
         self.server = AirDropServer(self.config)
