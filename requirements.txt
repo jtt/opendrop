@@ -1,0 +1,7 @@
+pillow
+fleep
+ifaddr
+libarchive-c
+requests
+requests_toolbelt
+zeroconf >= 0.24.2
