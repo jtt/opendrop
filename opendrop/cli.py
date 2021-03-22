@@ -18,6 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 import argparse
+from http import client
 import json
 import logging
 import os
@@ -39,7 +40,9 @@ def main():
 class AirDropCli:
     def __init__(self, args):
         parser = argparse.ArgumentParser()
-        parser.add_argument("action", choices=["receive", "find", "send", "discover"])
+        parser.add_argument(
+            "action", choices=["receive", "find", "send", "discover", "ask"]
+        )
         parser.add_argument("-f", "--file", help="File to be sent")
         parser.add_argument(
             "-r",
@@ -109,6 +112,17 @@ class AirDropCli:
                 self._address = args.address
                 self._port = args.port
                 self.cmd_discover()
+            elif args.action == "ask":
+                if args.address is None:
+                    parser.error("Need -A, --address when using raw ask")
+                self._address = args.address
+                self._port = args.port
+                if args.file is None:
+                    parser.error("Need -f,--file when using send")
+                if not os.path.isfile(args.file):
+                    parser.error("File in -f,--file not found")
+                self.file = args.file
+                self.cmd_ask()
             elif args.action == "send":
                 if args.file is None:
                     parser.error("Need -f,--file when using send")
@@ -193,8 +207,16 @@ class AirDropCli:
         client = AirDropClient(self.config, (address, port))
         client.send_discover()
 
+    def _send_ask_to(self, address: str, port: int):
+        logger.debug(f"Sending Ask to [{address}]:{port}")
+        client = AirDropClient(self.config, (address, port))
+        client.send_ask(self.file)
+
     def cmd_discover(self):
         self._send_discover_to(self._address, self._port)
+
+    def cmd_ask(self):
+        self._send_ask_to(self._address, self._port)
 
     def receive(self):
         self.server = AirDropServer(self.config)
