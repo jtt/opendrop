@@ -39,7 +39,7 @@ def main():
 class AirDropCli:
     def __init__(self, args):
         parser = argparse.ArgumentParser()
-        parser.add_argument("action", choices=["receive", "find", "send"])
+        parser.add_argument("action", choices=["receive", "find", "send", "discover"])
         parser.add_argument("-f", "--file", help="File to be sent")
         parser.add_argument(
             "-r",
@@ -63,6 +63,13 @@ class AirDropCli:
         )
         parser.add_argument(
             "-i", "--interface", help="Which AWDL interface to use", default="awdl0"
+        )
+
+        parser.add_argument(
+            "-A", "--address", help="Address to send raw messages", required=False
+        )
+        parser.add_argument(
+            "-P", "--port", help="Port to send raw message to", default=8770
         )
         args = parser.parse_args(args)
 
@@ -96,7 +103,13 @@ class AirDropCli:
                 self.receive()
             elif args.action == "find":
                 self.find()
-            else:  # args.action == 'send'
+            elif args.action == "discover":
+                if args.address is None:
+                    parser.error("Need -A, --address when using raw discover")
+                self._address = args.address
+                self._port = args.port
+                self.cmd_discover()
+            elif args.action == "send":
                 if args.file is None:
                     parser.error("Need -f,--file when using send")
                 if not os.path.isfile(args.file):
@@ -106,6 +119,8 @@ class AirDropCli:
                     parser.error("Need -r,--receiver when using send")
                 self.receiver = args.receiver
                 self.send()
+            else:
+                parser.error(f"unsupported action {args.action}")
         except KeyboardInterrupt:
             if self.browser is not None:
                 self.browser.stop()
@@ -172,6 +187,14 @@ class AirDropCli:
         else:
             logger.debug(f"Receiver ID {identifier} is not discoverable")
         self.lock.release()
+
+    def _send_discover_to(self, address: str, port: int):
+        logger.debug(f"Sending Discover to [{address}]:[{port}] ")
+        client = AirDropClient(self.config, (address, port))
+        client.send_discover()
+
+    def cmd_discover(self):
+        self._send_discover_to(self._address, self._port)
 
     def receive(self):
         self.server = AirDropServer(self.config)
