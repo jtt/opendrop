@@ -25,6 +25,7 @@ import os
 import sys
 import threading
 import time
+from typing import Optional, Dict
 
 from .client import AirDropBrowser, AirDropClient
 from .config import AirDropConfig, AirDropReceiverFlags
@@ -74,6 +75,18 @@ class AirDropCli:
         parser.add_argument(
             "-P", "--port", help="Port to send raw message to", default=8770
         )
+        parser.add_argument(
+            "-J",
+            "--payload",
+            help="JSON data containing payload to send with ask/discover",
+            required=False,
+        )
+        parser.add_argument(
+            "-B",
+            "--binpayload",
+            help="Raw payload send with ask/discover",
+            required=False,
+        )
         args = parser.parse_args(args)
 
         if args.debug:
@@ -100,8 +113,21 @@ class AirDropCli:
         self.sending_started = False
         self.discover = []
         self.lock = threading.Lock()
+        # custom payloads for ask/discover
+        self.custom_payload: Optional[Dict] = None
+        self.raw_payload: Optional[bytes] = None
 
         try:
+            # Read custom payloads
+            if args.payload is not None:
+                if not os.path.isfile(args.payload):
+                    parser.error(f"custom payload file {args.payload} not found")
+                self.custom_payload = _read_json_payload(args.payload)
+            if args.binpayload is not None:
+                if not os.path.isfile(args.binpayload):
+                    parser.error(f"custom payload file {args.binpayload} not found")
+                self.raw_payload = _read_binary_payload(args.binpayload)
+
             if args.action == "receive":
                 self.receive()
             elif args.action == "find":
@@ -184,7 +210,9 @@ class AirDropCli:
 
         if flags & AirDropReceiverFlags.SUPPORTS_DISCOVER_MAYBE:
             try:
-                receiver_name = client.send_discover()
+                receiver_name = client.send_discover(
+                    payload=self.custom_payload, binpayload=self.raw_payload
+                )
             except TimeoutError:
                 receiver_name = None
         else:
@@ -211,12 +239,14 @@ class AirDropCli:
     def _send_discover_to(self, address: str, port: int):
         logger.debug(f"Sending Discover to [{address}]:[{port}] ")
         client = AirDropClient(self.config, (address, port))
-        client.send_discover()
+        client.send_discover(payload=self.custom_payload, binpayload=self.raw_payload)
 
     def _send_ask_to(self, address: str, port: int):
         logger.debug(f"Sending Ask to [{address}]:{port}")
         client = AirDropClient(self.config, (address, port))
-        client.send_ask(self.file)
+        client.send_ask(
+            self.file, payload=self.custom_payload, binpayload=self.raw_payload
+        )
 
     def _send_upload_to(self, address: str, port: int):
         logger.debug(f"Sending Upload to [{address}]:{port}")
@@ -243,7 +273,9 @@ class AirDropCli:
             return
         self.client = AirDropClient(self.config, (info["address"], info["port"]))
         logger.info("Asking receiver to accept ...")
-        if not self.client.send_ask(self.file):
+        if not self.client.send_ask(
+            self.file, payload=self.custom_payload, binpayload=self.raw_payload
+        ):
             logger.warning("Receiver declined")
             return
         logger.info("Receiver accepted")
@@ -286,4 +318,24 @@ class AirDropCli:
         logger.error(
             "Receiver does not exist (check -r,--receiver format or try 'opendrop find' again"
         )
+        return None
+
+
+def _read_json_payload(fname: str) -> Optional[Dict]:
+    try:
+        with open(fname, "r") as f:
+            payload = json.load(f)
+        return payload
+    except Exception as ex:
+        logger.warning(f"Unable to read JSON payload: {ex}")
+        return None
+
+
+def _read_binary_payload(fname: str) -> Optional[bytes]:
+    try:
+        with open(fname, "rb") as f:
+            payload = f.read()
+        return payload
+    except Exception as ex:
+        logger.warning(f"Unable to read binary payload: {ex}")
         return None

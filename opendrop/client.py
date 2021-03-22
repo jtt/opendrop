@@ -25,6 +25,7 @@ import platform
 import plistlib
 import socket
 from http.client import HTTPSConnection
+from typing import Optional, Dict
 
 import fleep
 import libarchive
@@ -130,16 +131,27 @@ class AirDropClient:
             logger.debug(f"{url} request successful")
         return status, response_bytes
 
-    def send_discover(self):
-        discover_body = {}
-        if self.config.record_data:
-            discover_body["SenderRecordData"] = self.config.record_data
+    def send_discover(
+        self, payload: Optional[Dict] = None, binpayload: Optional[bytes] = None
+    ):
+        if payload is None:
+            discover_body = {}
+            if self.config.record_data:
+                discover_body["SenderRecordData"] = self.config.record_data
 
-        logger.debug(f"/Discover: {repr(discover_body)}")
+            logger.debug(f"/Discover: {repr(discover_body)}")
+        else:
+            logger.debug(f"/Discover: {repr(payload)} (custom)")
+            discover_body = payload
 
-        discover_plist_binary = plistlib.dumps(
-            discover_body, fmt=plistlib.FMT_BINARY  # pylint: disable=no-member
-        )
+        if binpayload is None:
+            discover_plist_binary = plistlib.dumps(
+                discover_body, fmt=plistlib.FMT_BINARY  # pylint: disable=no-member
+            )
+        else:
+            logger.debug(f"/Discover with {len(binpayload)} bytes of custom payload")
+            discover_plist_binary = binpayload
+
         _, response_bytes = self.send_POST("/Discover", discover_plist_binary)
         response = plistlib.loads(response_bytes)
 
@@ -148,49 +160,63 @@ class AirDropClient:
         # if name is returned, then receiver is discoverable
         return response.get("ReceiverComputerName")
 
-    def send_ask(self, file_path, icon=None):
-        ask_body = {
-            "SenderComputerName": self.config.computer_name,
-            "BundleID": "com.apple.finder",
-            "SenderModelName": self.config.computer_model,
-            "SenderID": self.config.service_id,
-            "ConvertMediaFormats": False,
-        }
-        if self.config.record_data:
-            ask_body["SenderRecordData"] = self.config.record_data
+    def send_ask(
+        self,
+        file_path,
+        icon=None,
+        payload: Optional[Dict] = None,
+        binpayload: Optional[bytes] = None,
+    ):
 
-        if isinstance(file_path, str):
-            file_path = [file_path]
+        if payload is not None:
+            ask_body = payload
+        else:
+            ask_body = {
+                "SenderComputerName": self.config.computer_name,
+                "BundleID": "com.apple.finder",
+                "SenderModelName": self.config.computer_model,
+                "SenderID": self.config.service_id,
+                "ConvertMediaFormats": False,
+            }
+            if self.config.record_data:
+                ask_body["SenderRecordData"] = self.config.record_data
 
-        # generate icon for first file
-        with open(file_path[0], "rb") as f:
-            file_header = f.read(128)
-            flp = fleep.get(file_header)
-            if not icon and len(flp.mime) > 0 and "image" in flp.mime[0]:
-                icon = AirDropUtil.generate_file_icon(f.name)
-        if icon:
-            ask_body["FileIcon"] = icon
+            if isinstance(file_path, str):
+                file_path = [file_path]
 
-        def file_entries(files):
-            for file in files:
-                file_name = os.path.basename(file)
-                file_entry = {
-                    "FileName": file_name,
-                    "FileType": AirDropUtil.get_uti_type(flp),
-                    "FileBomPath": os.path.join(".", file_name),
-                    "FileIsDirectory": os.path.isdir(file_name),
-                    "ConvertMediaFormats": 0,
-                }
-                yield file_entry
+            # generate icon for first file
+            with open(file_path[0], "rb") as f:
+                file_header = f.read(128)
+                flp = fleep.get(file_header)
+                if not icon and len(flp.mime) > 0 and "image" in flp.mime[0]:
+                    icon = AirDropUtil.generate_file_icon(f.name)
+            if icon:
+                ask_body["FileIcon"] = icon
 
-        ask_body["Files"] = [e for e in file_entries(file_path)]
-        ask_body["Items"] = []
+            def file_entries(files):
+                for file in files:
+                    file_name = os.path.basename(file)
+                    file_entry = {
+                        "FileName": file_name,
+                        "FileType": AirDropUtil.get_uti_type(flp),
+                        "FileBomPath": os.path.join(".", file_name),
+                        "FileIsDirectory": os.path.isdir(file_name),
+                        "ConvertMediaFormats": 0,
+                    }
+                    yield file_entry
 
-        logger.debug(f"/Ask {repr(ask_body)}")
+            ask_body["Files"] = [e for e in file_entries(file_path)]
+            ask_body["Items"] = []
 
-        ask_binary = plistlib.dumps(
-            ask_body, fmt=plistlib.FMT_BINARY  # pylint: disable=no-member
-        )
+        if binpayload is None:
+            logger.debug(f"/Ask {repr(ask_body)}")
+            ask_binary = plistlib.dumps(
+                ask_body, fmt=plistlib.FMT_BINARY  # pylint: disable=no-member
+            )
+        else:
+            logger.debug(f"/Ask with {len(binpayload)} bytes of custom data")
+            ask_binary = binpayload
+
         success, _ = self.send_POST("/Ask", ask_binary)
 
         return success
