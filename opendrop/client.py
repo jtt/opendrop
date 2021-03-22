@@ -135,11 +135,15 @@ class AirDropClient:
         if self.config.record_data:
             discover_body["SenderRecordData"] = self.config.record_data
 
+        logger.debug(f"/Discover: {repr(discover_body)}")
+
         discover_plist_binary = plistlib.dumps(
             discover_body, fmt=plistlib.FMT_BINARY  # pylint: disable=no-member
         )
         _, response_bytes = self.send_POST("/Discover", discover_plist_binary)
         response = plistlib.loads(response_bytes)
+
+        logger.debug(f"/Discover response contained: {repr(response)}")
 
         # if name is returned, then receiver is discoverable
         return response.get("ReceiverComputerName")
