@@ -172,7 +172,9 @@ class AirDropCli:
         identifier = info.name.split(".")[0]
         hostname = info.server
         port = int(info.port)
-        logger.debug(f"AirDrop service found: {hostname}, {address}:{port}, ID {id}")
+        logger.debug(
+            f"AirDrop service found: {hostname}, {address}:{port}, ID {identifier}"
+        )
         client = AirDropClient(self.config, (address, int(port)))
         try:
             flags = int(info.properties[b"flags"])
