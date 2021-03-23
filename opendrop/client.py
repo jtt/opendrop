@@ -221,7 +221,7 @@ class AirDropClient:
 
         return success
 
-    def send_upload(self, file_path):
+    def send_upload(self, file_path, rawcpio: Optional[str]):
         """
         Send a file to a receiver.
         """
@@ -229,21 +229,30 @@ class AirDropClient:
             "Content-Type": "application/x-cpio",
         }
 
-        # Create archive in memory ...
-        stream = io.BytesIO()
-        with libarchive.custom_writer(
-            stream.write,
-            "cpio",
-            filter_name="gzip",
-            archive_write_class=AbsArchiveWrite,
-        ) as archive:
-            for f in [file_path]:
-                ff = os.path.basename(f)
-                archive.add_abs_file(f, os.path.join(".", ff))
-        stream.seek(0)
+        if rawcpio is not None:
+            logger.debug(f"Reading Raw cpio data from {rawcpio}")
+            stream = open(rawcpio, "rb")
+        else:
+            # Create archive in memory ...
+            stream = io.BytesIO()
+            with libarchive.custom_writer(
+                stream.write,
+                "cpio",
+                filter_name="gzip",
+                archive_write_class=AbsArchiveWrite,
+            ) as archive:
+                for f in [file_path]:
+                    ff = os.path.basename(f)
+                    archive.add_abs_file(f, os.path.join(".", ff))
+            stream.seek(0)
 
         # ... then send in chunked mode
-        success, _ = self.send_POST("/Upload", stream, headers=headers)
+        try:
+            success, _ = self.send_POST("/Upload", stream, headers=headers)
+
+        finally:
+            if rawcpio is not None:
+                stream.close()
 
         # TODO better: write archive chunk whenever send_POST does a read to avoid having the whole archive in memory
 

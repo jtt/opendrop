@@ -85,6 +85,9 @@ class AirDropCli:
             "-P", "--port", help="Port to send raw message to", default=8770
         )
         parser.add_argument(
+            "-R", "--rawcpio", help="Raw cpio file to upload", required=False
+        )
+        parser.add_argument(
             "-J",
             "--payload",
             help="JSON data containing payload to send with ask/discover",
@@ -158,11 +161,20 @@ class AirDropCli:
                     )
                 self._address = args.address
                 self._port = args.port
-                if args.file is None:
-                    parser.error("Need -f,--file when using ask/upload/askupload")
-                if not os.path.isfile(args.file):
-                    parser.error("File in -f,--file not found")
-                self.file = args.file
+                if args.file is not None:
+                    if not os.path.isfile(args.file):
+                        parser.error("File in -f,--file not found")
+                    self.file = args.file
+                else:
+                    self.file = None
+
+                if args.rawcpio is not None:
+                    if not os.path.isfile(args.rawcpio):
+                        parser.error("File in -R,--rawcipio not found")
+                    self.rawcpio = args.rawcpio
+                else:
+                    self.rawcpio = None
+
                 if args.action == "ask":
                     self.cmd_ask()
                 elif args.action == "upload":
@@ -267,18 +279,24 @@ class AirDropCli:
 
     def _send_upload_to(self, address: str, port: int):
         logger.debug(f"Sending Upload to [{address}]:{port}")
+        if self.file is None and self.rawcpio is None:
+            logger.error("Need either -f,--file or -R,--rawcpio")
+            return
         client = AirDropClient(self.config, (address, port))
-        client.send_upload(self.file)
+        client.send_upload(self.file, self.rawcpio)
 
     def _send_ask_and_upload(self, address: str, port: int):
         logger.debug(f"Sending Ask-Upload to [{address}]:{port}")
+        if self.file is None and self.rawcpio is None:
+            logger.error("Need either -f,--file or -R,--rawcpio")
+            return
         client = AirDropClient(self.config, (address, port))
         logger.debug("..Ask")
         client.send_ask(
             self.file, payload=self.custom_payload, binpayload=self.raw_payload
         )
         logger.debug("..Upload")
-        client.send_upload(self.file)
+        client.send_upload(self.file, self.rawcpio)
 
     def cmd_discover(self):
         self._send_discover_to(self._address, self._port)
@@ -310,7 +328,7 @@ class AirDropCli:
             return
         logger.info("Receiver accepted")
         logger.info("Uploading file ...")
-        if not self.client.send_upload(self.file):
+        if not self.client.send_upload(self.file, None):
             logger.warning("Uploading has failed")
             return
         logger.info("Uploading has been successful")
