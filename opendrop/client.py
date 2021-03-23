@@ -169,8 +169,13 @@ class AirDropClient:
     ):
 
         if payload is not None:
+            logger.debug("Have JSON payload")
             ask_body = payload
+        elif binpayload is not None:
+            logger.debug("Have raw binary payload")
+            ask_body = None
         else:
+            logger.debug("No custom payload")
             ask_body = {
                 "SenderComputerName": self.config.computer_name,
                 "BundleID": "com.apple.finder",
