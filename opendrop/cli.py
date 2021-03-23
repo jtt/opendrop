@@ -42,7 +42,16 @@ class AirDropCli:
     def __init__(self, args):
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "action", choices=["receive", "find", "send", "discover", "ask", "upload"]
+            "action",
+            choices=[
+                "receive",
+                "find",
+                "send",
+                "discover",
+                "ask",
+                "upload",
+                "askupload",
+            ],
         )
         parser.add_argument("-f", "--file", help="File to be sent")
         parser.add_argument(
@@ -138,20 +147,28 @@ class AirDropCli:
                 self._address = args.address
                 self._port = args.port
                 self.cmd_discover()
-            elif args.action == "ask" or args.action == "upload":
+            elif (
+                args.action == "ask"
+                or args.action == "upload"
+                or args.action == "askupload"
+            ):
                 if args.address is None:
-                    parser.error("Need -A, --address when using raw ask/upload")
+                    parser.error(
+                        "Need -A, --address when using raw ask/upload/askupload"
+                    )
                 self._address = args.address
                 self._port = args.port
                 if args.file is None:
-                    parser.error("Need -f,--file when using send")
+                    parser.error("Need -f,--file when using ask/upload/askupload")
                 if not os.path.isfile(args.file):
                     parser.error("File in -f,--file not found")
                 self.file = args.file
                 if args.action == "ask":
                     self.cmd_ask()
-                else:
+                elif args.action == "upload":
                     self.cmd_upload()
+                else:  # "askupload"
+                    self.cmd_askupload()
 
             elif args.action == "send":
                 if args.file is None:
@@ -253,6 +270,16 @@ class AirDropCli:
         client = AirDropClient(self.config, (address, port))
         client.send_upload(self.file)
 
+    def _send_ask_and_upload(self, address: str, port: int):
+        logger.debug(f"Sending Ask-Upload to [{address}]:{port}")
+        client = AirDropClient(self.config, (address, port))
+        logger.debug("..Ask")
+        client.send_ask(
+            self.file, payload=self.custom_payload, binpayload=self.raw_payload
+        )
+        logger.debug("..Upload")
+        client.send_upload(self.file)
+
     def cmd_discover(self):
         self._send_discover_to(self._address, self._port)
 
@@ -261,6 +288,9 @@ class AirDropCli:
 
     def cmd_upload(self):
         self._send_upload_to(self._address, self._port)
+
+    def cmd_askupload(self):
+        self._send_ask_and_upload(self._address, self._port)
 
     def receive(self):
         self.server = AirDropServer(self.config)
