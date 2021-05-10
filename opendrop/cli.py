@@ -79,6 +79,13 @@ class AirDropCli:
         )
 
         parser.add_argument(
+            "-I",
+            "--no-interface",
+            action="store_true",
+            help="Do not use awdl interface for connection (allows use of global IPv6 addresses)",
+        )
+
+        parser.add_argument(
             "-A", "--address", help="Address to send raw messages", required=False
         )
         parser.add_argument(
@@ -111,13 +118,18 @@ class AirDropCli:
 
         # TODO put emails and phone in canonical form (lower case, no '+' sign, etc.)
 
+        ifname = args.interface
+        if args.no_interface:
+            logger.info("Clearing interface")
+            ifname = None
+
         self.config = AirDropConfig(
             email=args.email,
             phone=args.phone,
             computer_name=args.name,
             computer_model=args.model,
             debug=args.debug,
-            interface=args.interface,
+            interface=ifname,
         )
         self.server = None
         self.client = None

@@ -87,8 +87,8 @@ class AirDropConfig:
         self.debug = debug
         self.debug_dir = os.path.join(self.airdrop_dir, "debug")
 
-        if interface is None:
-            interface = "awdl0"
+        # if interface is None:
+        #     interface = "awdl0"
         self.interface = interface
 
         if email is None:
